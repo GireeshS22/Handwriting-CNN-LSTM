@@ -33,50 +33,56 @@ def returnClasses(string):
 infile = pd.read_csv("Data\\list.csv")
 
 #%%
-#reading images from the path
-image = cv2.imread("Data\\Images\\Test\\R06-137-S00-03.PNG", cv2.IMREAD_GRAYSCALE)
-h, w = np.shape(image)
-
-#setting factor if the image is greater than the window height
-if (h > window_height): factor = window_height/h
-else: factor = 1
-
-#resizing the image to the specified window height
-image = cv2.resize(image, None, fx=factor, fy=factor, interpolation = cv2.INTER_CUBIC)
-h, w = np.shape(image)
-
-#writing to input list
 inputList = []
 seqLens = []
+targetList = []
 
-featureSet = []
-
-winId = 0
-while True:
-    s = winId * window_shift
-    e = s + window_width
+for record in range(0, len(infile)):
+    path = infile["Path"][record]
+    annotation = infile["Annotation"][record]
+    #reading images from the path
+    print("Reading file: " + path)
+    image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    h, w = np.shape(image)
+    print(np.shape(image))
     
-    if e > w:
-        break
+    #setting factor if the image is greater than the window height
+    if (h > window_height): factor = window_height/h
+    else: factor = 1
     
-    wnd = image[:h, s:e]
-    featureSet.append(wnd)
-    winId = winId + 1
+    #resizing the image to the specified window height
+    image = cv2.resize(image, None, fx=factor, fy=factor, interpolation = cv2.INTER_CUBIC)
+    h, w = np.shape(image)
+        
+    featureSet = []
     
-inputList.append(featureSet)
-
-#taking the sequence length
-winId = 0
-wpd = 0
-while True:
-    s = winId * window_shift
-    e = s + window_width
+    winId = 0
+    while True:
+        s = winId * window_shift
+        e = s + window_width
+        
+        if e > w:
+            break
+        
+        wnd = image[:h, s:e]
+        featureSet.append(wnd)
+        winId = winId + 1
+        
+    inputList.append(featureSet)
     
-    if e > w:
-        sl = (winId+1) * vec_per_window
-        seqLens.append(sl)
-        break
-    winId = winId + 1
-    
-#taking the text annotations from the csv file and converting to labels
-    
+    #taking the sequence length
+    winId = 0
+    wpd = 0
+    while True:
+        s = winId * window_shift
+        e = s + window_width
+        
+        if e > w:
+            sl = (winId+1) * vec_per_window
+            seqLens.append(sl)
+            break
+        winId = winId + 1
+        
+    #taking the text annotations from the csv file and converting to labels
+    targetList.append(returnClasses(annotation))
+        
