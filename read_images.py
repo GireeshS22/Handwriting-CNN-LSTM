@@ -30,7 +30,7 @@ def returnClasses(string):
     return classes
     
 #%%
-infile = pd.read_csv("Data\\list.csv")
+infile = pd.read_csv(".\\Data\\list.csv")
 
 #%%
 inputList = []

@@ -9,8 +9,9 @@ import keras
 from keras import backend as K
 from keras.models import Sequential, Model
 from keras.layers import Input, Conv2D, MaxPooling2D, Activation, Reshape
-from keras.layers import Bidirectional, LSTM
+from keras.layers import Bidirectional, LSTM, Lambda
 from keras.layers.normalization import BatchNormalization
+from keras.optimizers import SGD
 
 from configuration import window_height, window_width, MPoolLayers_ALL, LastFilters, NUnits
 
@@ -91,8 +92,31 @@ convolution_full = Reshape(target_shape=(LastFilters * FV, 16))(pooling5)
 
 bidir_LSTM1 = Bidirectional(LSTM(units = NUnits, return_sequences=True))(convolution_full)
 bidir_LSTM2 = Bidirectional(LSTM(units = NUnits, return_sequences=True))(bidir_LSTM1)
-bidir_LSTM3 = Bidirectional(LSTM(units = NUnits))(bidir_LSTM2)
+y_pred = Bidirectional(LSTM(units = NUnits))(bidir_LSTM2)
 
-Model(inputs = input_data, outputs = bidir_LSTM3).summary()
+Model(inputs = input_data, outputs = y_pred).summary()
 
 #%%
+# the actual loss calc occurs here despite it not being an internal Keras loss function
+
+def ctc_lambda_func(args):
+    y_pred, labels, input_length, label_length = args
+    # the 2 is critical here since the first couple outputs of the RNN tend to be garbage:
+    #y_pred = y_pred[:, 2:, :]
+    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+
+#%%
+labels = Input(shape=[47], dtype='float32')
+input_length = Input(shape=[1], dtype='int64')
+label_length = Input(shape=[1], dtype='int64')
+# Keras doesn't currently support loss funcs with extra parameters
+# so CTC loss is implemented in a lambda layer
+loss_out = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc')([y_pred, labels, input_length, label_length])
+
+# clipnorm seems to speeds up convergence
+sgd = SGD(lr=0.02, decay=1e-6, momentum=0.9, nesterov=True, clipnorm=5)
+
+model = Model(inputs=[input_data, labels, input_length, label_length], outputs=loss_out)
+
+# the loss calc occurs elsewhere, so use a dummy lambda func for the loss
+model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=sgd)
